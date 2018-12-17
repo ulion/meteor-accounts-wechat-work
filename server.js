@@ -2,10 +2,12 @@ import { check } from 'meteor/check';
 import { checkNpmVersions } from 'meteor/tmeasday:check-npm-versions';
 
 checkNpmVersions({
-  'wechat-oauth': '*'
-}, 'ulion:accounts-wechat');
+  'wechat-oauth': '*',
+  'co-wxwork-api': '*'
+}, 'ulion:accounts-wechat-work');
 
 const WeChatOAuth = require('wechat-oauth');
+const {ProviderAPI, SuiteAPI} = require('co-wxwork-api');
 
 const whitelistedFields = [
   'nickname',
@@ -18,10 +20,9 @@ const whitelistedFields = [
   'privilege'
 ];
 
-const serviceName = WechatService.serviceName;
+const serviceName = WxworkService.serviceName;
 const serviceVersion = 2;
 const serviceUrls = null;
-let useUnionIdAsMainId = false;
 
 const getServiceConfig = function() {
   let config = ServiceConfiguration.configurations.findOne({
@@ -29,7 +30,6 @@ const getServiceConfig = function() {
   });
   if (!config)
     throw new ServiceConfiguration.ConfigError();
-  useUnionIdAsMainId = config.mainId === 'unionId';
   return config;
 }
 
@@ -78,10 +78,55 @@ let getTokenResponse = function(config, query) {
   try {
     state = OAuth._stateFromQuery(query);
   } catch (err) {
-    throw new Error("Failed to extract state in OAuth callback with Wechat: " + query.state);
+    throw new Error("Failed to extract state in OAuth callback with Wxwork: " + query.state);
   }
   let response;
   try {
+    if (state.appId === config.providerId) {
+      // webapp??
+      response = getProviderAPI().getLoginInfo(query.auth_code);
+      /*
+{
+   "errcode":0,
+   "errmsg":"ok",
+   "usertype": 1,
+   "user_info":{
+       "userid":"xxxx",
+       "name":"xxxx",
+       "avatar":"xxxx"
+   },
+   "corp_info":{
+       "corpid":"wx6c698d13f7a409a4",
+    }
+}
+      */
+      return {
+        appId: state.appId,
+        accessToken: response.content.access_token,
+        expiresIn: response.content.expires_in,
+        refreshToken: response.content.refresh_token,
+        scope: response.content.scope,
+        openId: response.content.openid,
+        unionId: response.content.unionid
+      };
+    }
+    else {
+      // within wechat work browser
+      /*
+{
+   "errcode": 0,
+   "errmsg": "ok",
+   "corpid":"wwxxxxxxyyyyy",
+   "userid":"lisi",
+   "name":"李四",
+   "mobile":"15913215421",
+   "gender":"1",
+   "email":"xxx@xx.com",
+   "avatar":"http://shp.qpic.cn/bizmp/xxxxxxxxxxx/0",
+   "qr_code":"https://open.work.weixin.qq.com/wwopen/userQRCode?vcode=vcfc13b01dfs78e981c"
+}
+      */
+    }
     let params = {
       code: query.code,
       appid: state.appId,
@@ -110,7 +155,7 @@ let getTokenResponse = function(config, query) {
         response: response
       };
   } catch (err) {
-    throw _.extend(new Error("Failed to complete OAuth handshake with WechatService. " + err.message), {
+    throw _.extend(new Error("Failed to complete OAuth handshake with WxworkService. " + err.message), {
       response: err.response
     });
   }
@@ -151,7 +196,7 @@ let getIdentity = function(accessToken, openId) {
 
     return response.content;
   } catch (err) {
-    throw _.extend(new Error("Failed to fetch identity from WechatService. " + err.message), {
+    throw _.extend(new Error("Failed to fetch identity from WxworkService. " + err.message), {
       response: err.response
     });
   }
@@ -161,7 +206,7 @@ let getIdentity = function(accessToken, openId) {
 OAuth.registerService(serviceName, serviceVersion, serviceUrls, serviceHandler);
 
 // retrieve credential
-WechatService.retrieveCredential = function(credentialToken, credentialSecret) {
+WxworkService.retrieveCredential = function(credentialToken, credentialSecret) {
   return OAuth.retrieveCredential(credentialToken, credentialSecret);
 };
 
@@ -180,6 +225,35 @@ Accounts.addAutopublishFields({
       return 'services.' + serviceName + '.' + subfield;
     })
 });
+
+let providerAPI = null;
+let suiteAPI = null;
+
+const getProviderAPI = function() {
+  if (providerAPI) {
+    return providerAPI;
+  }
+  let config = getServiceConfig();
+  return providerAPI = new ProviderAPI(
+    config.cropId,
+    config.providerSecret,
+    WxworkService.getProviderToken,
+    WxworkService.setProviderToken
+  );
+}
+
+const getSuiteAPI = function() {
+  if (suiteAPI) {
+    return suiteAPI;
+  }
+  let config = getServiceConfig();
+  return suiteAPI = new SuiteAPI(
+    config.suiteId,
+    config.suiteSecret,
+    WxworkService.getProviderToken,
+    WxworkService.setProviderToken
+  );
+}
 
 let wechatOAuthAPI = null;
 let sessionKeys = {};
@@ -203,10 +277,10 @@ const getWeChatOAuthAPI = function() {
       // 持久化时请注意，每个openid都对应一个唯一的token!
       Token.setToken(openid, token, callback);
     }, */
-    WechatService.getToken || null,
+    WxworkService.getToken || null,
     function(openid, token, callback) {
       sessionKeys[openid] = token;
-      WechatService.setToken && WechatService.setToken(openid, token, callback) || callback();
+      WxworkService.setToken && WxworkService.setToken(openid, token, callback) || callback();
     },
     true
   );
@@ -248,7 +322,7 @@ const miniAppServiceHandler = function(query) {
 };
 
 Meteor.methods({
-  handleWeChatOauthRequest: function(query) {
+  handleWeChatWorkOauthRequest: function(query) {
     // allow the client with 3rd party authorization code to directly ask server to handle it
     check(query.code, String);
     let oauthResult = serviceHandler(query);
@@ -270,7 +344,7 @@ Meteor.methods({
       'credentialSecret': credentialSecret
     };
   },
-  weChatMiniAppLogin: async function(query) {
+  weChatWorkMiniAppLogin: async function(query) {
     // accept wechat mini app wx.login() result 'code' and wx.getUserInfo() result iv and encryptedData
     check(query.code, String);
     check(query.encryptedData, String);

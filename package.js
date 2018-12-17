@@ -1,8 +1,8 @@
 Package.describe({
-    name: 'ulion:accounts-wechat',
-    version: '0.4.0',
-    summary: 'meteor accounts package for wechat',
-    git: 'https://github.com/ulion/meteor-accounts-wechat',
+    name: 'ulion:accounts-wechat-work',
+    version: '0.1.0',
+    summary: 'meteor accounts package for wechat work',
+    git: 'https://github.com/ulion/meteor-accounts-wechat-work',
     documentation: 'README.md'
 });
 
@@ -30,7 +30,7 @@ Package.onUse(function (api) {
     api.addFiles('wechat_configure.js', 'client');
     api.addFiles('wechat_login_button.css', 'client');
 
-    api.export('WechatService')
+    api.export('WxworkService')
 });
 
 /*

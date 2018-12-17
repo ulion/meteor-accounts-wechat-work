@@ -1,30 +1,28 @@
-const serviceName = WechatService.serviceName;
+const serviceName = WxworkService.serviceName;
 
-WechatService.withinWeChatBrowser = (/micromessenger/i).test(navigator.userAgent);
+WxworkService.withinWeChatBrowser = (/micromessenger/i).test(navigator.userAgent);
+WxworkService.withinWxworkBrowser = (/wxwork/i).test(navigator.userAgent);
 
-WechatService.signInMethodCfgs = {
-  mp: {
-    appIdField: 'mpAppId',
-    scope: 'snsapi_userinfo',
-    endpoint: 'oauth2/authorize'
+WxworkService.signInMethodCfgs = {
+  wxwork: {
+    appIdField: 'suiteId',
+    scope: 'snsapi_userinfo', // snsapi_privateinfo
+    endpoint: 'https://open.weixin.qq.com/connect/oauth2/authorize',
+    endpointSuffix: '&response_type=code#wechat_redirect'
   },
   webapp: {
-    appIdField: 'appId',
-    scope: 'snsapi_login',
-    endpoint: 'qrconnect'
-  },
-  mobile: {
-    appIdField: 'mobileAppId',
-    scope: 'snsapi_userinfo'
+    appIdField: 'providerId',
+    endpoint: 'https://open.work.weixin.qq.com/wwopen/sso/3rd_qrConnect',
+    endpointSuffix: '&usertype=member'
   }
 };
 
-// Request Wechat credentials for the user
+// Request Wxwork credentials for the user
 // @param options {optional}
 // @param credentialRequestCompleteCallback {Function} Callback function to call on
 //   completion. Takes one argument, credentialToken on success, or Error on
 //   error.
-WechatService.requestCredential = function (options, credentialRequestCompleteCallback) {
+WxworkService.requestCredential = function (options, credentialRequestCompleteCallback) {
   // support both (options, callback) and (callback).
   if (!credentialRequestCompleteCallback && typeof options === 'function') {
     credentialRequestCompleteCallback = options
@@ -41,57 +39,12 @@ WechatService.requestCredential = function (options, credentialRequestCompleteCa
     return
   }
 
-  WechatService.signInMethod = WechatService.withinWeChatBrowser && !!config.mpAppId ? 'mp' : 'webapp';
-  if (Meteor.isCordova && config.mobileAppId && Wechat) {
-    // FIXME: sometimes wechat is not installed, e.g. on iPad, or for some reason.
-    //        in such cases, indeed we want the scan qrcode mode to work
-    //        BUT, the qrcode mode bind with certain domain, for the webApp appId
-    //        In cordova, we have localhost:random-port so will not work.
-    //        Our best way out:
-    //        1. lead user to use browser to open app.circleplus.cn then scan the qrcode
-    //        2. with inner-browser, or device browser open website & login with wechat qrcode
-    //           then finally transfer the login token back to the app and signed in.
-    //           SO we need a way to open app with login state token from signed in browser instance.
-    Wechat.isInstalled(function(installed) {
-      if (!installed) {
-        return prepareLogin(launchLogin);
-      }
-      // WeChat app is installed
-      WechatService.signInMethod = 'mobile';
+  WxworkService.signInMethod = WxworkService.withinWxworkBrowser && !!config.appId ? 'wxwork' : 'webapp';
 
-      prepareLogin(function(signInMethodCfg, state) {
-        Wechat.auth(signInMethodCfg.scope, state, function(response) {
-          // send the 3rd party response directly to the server for processing
-          Meteor.call('handleWeChatOauthRequest', response, function(err, credentials) {
-            //console.log('handleWeChatOauthRequest ret:', err, JSON.stringify(credentials));
-            if (err) {
-              credentialRequestCompleteCallback && credentialRequestCompleteCallback(
-                new Meteor.Error("unauthroized", "WeChat handle oauth failed: " + err)
-              );
-              return;
-            }
-            OAuth._handleCredentialSecret(credentials.credentialToken, credentials.credentialSecret);
-            credentialRequestCompleteCallback && credentialRequestCompleteCallback(
-              credentials.credentialToken
-            );
-          });
-        }, function(reason) {
-          credentialRequestCompleteCallback && credentialRequestCompleteCallback(
-            new Meteor.Error("unauthroized", "WeChat authorization failed: " + reason)
-          );
-        });
-      });
-
-    }, function (reason) {
-      return prepareLogin(launchLogin);
-    });
-  }
-  else {
-    prepareLogin(launchLogin);
-  }
+  prepareLogin(launchLogin);
 
   function prepareLogin(callback) {
-    let signInMethodCfg = WechatService.signInMethodCfg = WechatService.signInMethodCfgs[WechatService.signInMethod];
+    let signInMethodCfg = WxworkService.signInMethodCfg = WxworkService.signInMethodCfgs[WxworkService.signInMethod];
     var appId = signInMethodCfg.appId = config[signInMethodCfg.appIdField];
 
     var credentialToken = Random.secret()
@@ -115,13 +68,12 @@ WechatService.requestCredential = function (options, credentialRequestCompleteCa
 
   function launchLogin (signInMethodCfg, state, loginStyle, credentialToken) {
     var loginUrl =
-      'https://open.weixin.qq.com/connect/' + signInMethodCfg.endpoint +
+      signInMethodCfg.endpoint +
       '?appid=' + signInMethodCfg.appId +
       '&redirect_uri=' + OAuth._redirectUri(serviceName, config, null, {replaceLocalhost: true}) +
-      '&response_type=code' +
-      '&scope=' + signInMethodCfg.scope +
+      (signInMethodCfg.scope ? '&scope=' + signInMethodCfg.scope : '') +
       '&state=' + state +
-      '#wechat_redirect'
+      (signInMethodCfg.endpointSuffix || '')
 
     OAuth.launchLogin({
       loginService: serviceName,
@@ -133,7 +85,7 @@ WechatService.requestCredential = function (options, credentialRequestCompleteCa
   }
 }
 
-Meteor.loginWithWechat = function (options, callback) {
+Meteor.loginWithWxwork = function (options, callback) {
   // support a callback without options
   if (!callback && typeof options === 'function') {
     callback = options
@@ -141,5 +93,5 @@ Meteor.loginWithWechat = function (options, callback) {
   }
 
   var credentialRequestCompleteCallback = Accounts.oauth.credentialRequestCompleteHandler(callback)
-  WechatService.requestCredential(options, credentialRequestCompleteCallback)
+  WxworkService.requestCredential(options, credentialRequestCompleteCallback)
 }

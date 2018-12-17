@@ -1,5 +1,5 @@
-WechatService = {
-    serviceName: (Meteor.settings && Meteor.settings.public && Meteor.settings.public.wechatServiceName) || 'wechat'
+WxworkService = {
+    serviceName: (Meteor.settings && Meteor.settings.public && Meteor.settings.public.wxworkServiceName) || 'wxwork'
 };
 
-Accounts.oauth.registerService(WechatService.serviceName);
+Accounts.oauth.registerService(WxworkService.serviceName);
