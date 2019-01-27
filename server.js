@@ -10,14 +10,11 @@ const WeChatOAuth = require('wechat-oauth');
 const {ProviderAPI, SuiteAPI} = require('co-wxwork-api');
 
 const whitelistedFields = [
-  'nickname',
-  'sex',
-  'language',
-  'province',
-  'city',
-  'country',
-  'headimgurl',
-  'privilege'
+  'name',
+  'mobile',
+  'email',
+  'gender',
+  'avatar'
 ];
 
 const serviceName = WxworkService.serviceName;
@@ -36,34 +33,10 @@ const getServiceConfig = function() {
 const serviceHandler = function(query) {
   let config = getServiceConfig();
 
-  let response = getTokenResponse(config, query);
+  let serviceData = getTokenResponse(config, query);
+  serviceData.id = serviceData.cropId + ':' + serviceData.userId;
 
-  const expiresAt = (+new Date) + (1000 * parseInt(response.expiresIn, 10));
-  const {
-    appId,
-    accessToken,
-    scope,
-    openId,
-    unionId
-  } = response;
-  let serviceData = {
-    appId,
-    accessToken,
-    expiresAt,
-    openId,
-    unionId,
-    scope,
-    id: useUnionIdAsMainId ? unionId : openId // id is required by Meteor
-  };
-
-  // only set the token in serviceData if it's there. this ensures
-  // that we don't lose old ones
-  if (response.refreshToken)
-    serviceData.refreshToken = response.refreshToken;
-
-  let identity = getIdentity(accessToken, openId);
-  let fields = _.pick(identity, whitelistedFields);
-  _.extend(serviceData, fields);
+  let fields = _.pick(serviceData, whitelistedFields);
 
   return {
     serviceData: serviceData,
@@ -100,15 +73,14 @@ let getTokenResponse = function(config, query) {
     }
 }
       */
-      return {
+      let ret = {
         appId: state.appId,
-        accessToken: response.content.access_token,
-        expiresIn: response.content.expires_in,
-        refreshToken: response.content.refresh_token,
-        scope: response.content.scope,
-        openId: response.content.openid,
-        unionId: response.content.unionid
+        cropId: response.corp_info.corpid,
+        userId: response.user_info.userid
       };
+      let fields = _.pick(response.user_info, whitelistedFields);
+      _.extend(ret, fields);
+      return ret;
     }
     else {
       // within wechat work browser
@@ -235,7 +207,7 @@ const getProviderAPI = function() {
   }
   let config = getServiceConfig();
   return providerAPI = new ProviderAPI(
-    config.cropId,
+    config.providerId,
     config.providerSecret,
     WxworkService.getProviderToken,
     WxworkService.setProviderToken
