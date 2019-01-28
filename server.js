@@ -30,23 +30,25 @@ const getServiceConfig = function() {
   return config;
 }
 
-const serviceHandler = function(query) {
+const serviceHandler = Meteor.wrapAsync(function(query, callback) {
   let config = getServiceConfig();
 
-  let serviceData = getTokenResponse(config, query);
-  serviceData.id = serviceData.cropId + ':' + serviceData.userId;
+  getTokenResponse(config, query).then(serviceData => {
+    serviceData.id = serviceData.cropId + ':' + serviceData.userId;
 
-  let fields = _.pick(serviceData, whitelistedFields);
+    let fields = _.pick(serviceData, whitelistedFields);
 
-  return {
-    serviceData: serviceData,
-    options: {
-      profile: fields
-    }
-  };
-};
+    callback(null, {
+      serviceData: serviceData,
+      options: {
+        profile: fields
+      }
+    });
+  })
+  .catch(callback);
+});
 
-let getTokenResponse = function(config, query) {
+let getTokenResponse = async function(config, query) {
   let state;
   try {
     state = OAuth._stateFromQuery(query);
@@ -57,21 +59,18 @@ let getTokenResponse = function(config, query) {
   try {
     if (state.appId === config.providerId) {
       // webapp??
-      response = getProviderAPI().getLoginInfo(query.auth_code);
+      response = await getProviderAPI().getLoginInfo(query.auth_code);
+
+      console.log('loginInfo:', response);
       /*
-{
-   "errcode":0,
-   "errmsg":"ok",
-   "usertype": 1,
-   "user_info":{
-       "userid":"xxxx",
-       "name":"xxxx",
-       "avatar":"xxxx"
-   },
-   "corp_info":{
-       "corpid":"wx6c698d13f7a409a4",
-    }
-}
+{ usertype: 5,
+user_info:
+{ userid: '...',
+name: '...',
+email: '...',
+avatar: '...' },
+corp_info: { corpid: '...' },
+agent: [] }
       */
       let ret = {
         appId: state.appId,
@@ -127,6 +126,7 @@ let getTokenResponse = function(config, query) {
         response: response
       };
   } catch (err) {
+    console.warn("Failed to finish oauth handshake:", err);
     throw _.extend(new Error("Failed to complete OAuth handshake with WxworkService. " + err.message), {
       response: err.response
     });
