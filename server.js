@@ -81,8 +81,11 @@ agent: [] }
       _.extend(ret, fields);
       return ret;
     }
-    else {
+    else if (state.appId === config.suiteId){
       // within wechat work browser
+      response = await getSuiteAPI().getUserInfoByTicket(query.code);
+
+      console.log('userInfo:', response);
       /*
 {
    "errcode": 0,
@@ -97,50 +100,24 @@ agent: [] }
    "qr_code":"https://open.work.weixin.qq.com/wwopen/userQRCode?vcode=vcfc13b01dfs78e981c"
 }
       */
+      let ret = {
+        appId: state.appId,
+        cropId: response.corpid,
+        userId: response.userid
+      };
+      let fields = _.pick(response, whitelistedFields);
+      _.extend(ret, fields);
+      return ret;
     }
-    let params = {
-      code: query.code,
-      appid: state.appId,
-      secret: OAuth.openSecret(state.appId === config.mpAppId ? config.mpSecret : (state.appId === config.mobileAppId ? config.mobileSecret : config.secret)),
-      grant_type: 'authorization_code'
-    };
-    //console.log('request wechat access token:', params);
-    //Request an access token
-    response = HTTP.get(
-      "https://api.weixin.qq.com/sns/oauth2/access_token", {
-        params
-      }
-    );
-
-    if (response.statusCode !== 200 || !response.content)
-      throw {
-        message: "HTTP response error",
-        response: response
-      };
-
-    response.content = JSON.parse(response.content);
-    //console.log('wechat access token req ret:', response.content);
-    if (response.content.errcode)
-      throw {
-        message: response.content.errcode + " " + response.content.errmsg,
-        response: response
-      };
+    else {
+      throw new Error('Unknow wxwork oauth appId: ' + state.appId);
+    }
   } catch (err) {
     console.warn("Failed to finish oauth handshake:", err);
     throw _.extend(new Error("Failed to complete OAuth handshake with WxworkService. " + err.message), {
       response: err.response
     });
   }
-
-  return {
-    appId: state.appId,
-    accessToken: response.content.access_token,
-    expiresIn: response.content.expires_in,
-    refreshToken: response.content.refresh_token,
-    scope: response.content.scope,
-    openId: response.content.openid,
-    unionId: response.content.unionid
-  };
 };
 
 let getIdentity = function(accessToken, openId) {
@@ -219,12 +196,14 @@ const getSuiteAPI = function() {
     return suiteAPI;
   }
   let config = getServiceConfig();
-  return suiteAPI = new SuiteAPI(
+  suiteAPI = new SuiteAPI(
     config.suiteId,
     config.suiteSecret,
     WxworkService.getProviderToken,
     WxworkService.setProviderToken
   );
+  api.registerTicketHandle(WxworkService.getTicket, WxworkService.setTicket);
+  return suiteAPI;
 }
 
 let wechatOAuthAPI = null;
