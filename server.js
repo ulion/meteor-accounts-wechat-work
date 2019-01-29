@@ -59,7 +59,7 @@ let getTokenResponse = async function(config, query) {
   try {
     if (state.appId === config.providerId) {
       // webapp??
-      response = await getProviderAPI().getLoginInfo(query.auth_code);
+      response = await WxworkService.getProviderAPI().getLoginInfo(query.auth_code);
 
       console.log('loginInfo:', response);
       /*
@@ -83,7 +83,7 @@ agent: [] }
     }
     else if (state.appId === config.suiteId){
       // within wechat work browser
-      response = await getSuiteAPI().getUserInfoByTicket(query.code);
+      response = await WxworkService.getSuiteAPI().getUserInfoByTicket(query.code);
 
       console.log('userInfo:', response);
       /*
@@ -120,36 +120,6 @@ agent: [] }
   }
 };
 
-let getIdentity = function(accessToken, openId) {
-  try {
-    let response = HTTP.get("https://api.weixin.qq.com/sns/userinfo", {
-      params: {
-        access_token: accessToken,
-        openid: openId,
-        lang: 'zh-CN'
-      }
-    });
-
-    if (response.statusCode !== 200 || !response.content)
-      throw {
-        message: "HTTP response error",
-        response: response
-      };
-
-    response.content = JSON.parse(response.content);
-    if (response.content.errcode)
-      throw {
-        message: response.content.errcode + " " + response.content.errmsg,
-        response: response
-      };
-
-    return response.content;
-  } catch (err) {
-    throw _.extend(new Error("Failed to fetch identity from WxworkService. " + err.message), {
-      response: err.response
-    });
-  }
-};
 
 // register OAuth service
 OAuth.registerService(serviceName, serviceVersion, serviceUrls, serviceHandler);
@@ -178,7 +148,7 @@ Accounts.addAutopublishFields({
 let providerAPI = null;
 let suiteAPI = null;
 
-const getProviderAPI = function() {
+WxworkService.getProviderAPI = function() {
   if (providerAPI) {
     return providerAPI;
   }
@@ -191,7 +161,7 @@ const getProviderAPI = function() {
   );
 }
 
-const getSuiteAPI = function() {
+WxworkService.getSuiteAPI = function() {
   if (suiteAPI) {
     return suiteAPI;
   }
@@ -199,10 +169,10 @@ const getSuiteAPI = function() {
   suiteAPI = new SuiteAPI(
     config.suiteId,
     config.suiteSecret,
-    WxworkService.getProviderToken,
-    WxworkService.setProviderToken
+    WxworkService.getSuiteToken,
+    WxworkService.setSuiteToken
   );
-  api.registerTicketHandle(WxworkService.getTicket, WxworkService.setTicket);
+  suiteAPI.registerTicketHandle(WxworkService.getTicket, WxworkService.setTicket);
   return suiteAPI;
 }
 
