@@ -155,7 +155,7 @@ WxworkService.getProviderAPI = function() {
   let config = getServiceConfig();
   return providerAPI = new ProviderAPI(
     config.providerId,
-    config.providerSecret,
+    OAuth.openSecret(config.providerSecret),
     WxworkService.getProviderToken,
     WxworkService.setProviderToken
   );
@@ -168,7 +168,7 @@ WxworkService.getSuiteAPI = function() {
   let config = getServiceConfig();
   suiteAPI = new SuiteAPI(
     config.suiteId,
-    config.suiteSecret,
+    OAuth.openSecret(config.suiteSecret),
     WxworkService.getSuiteToken,
     WxworkService.setSuiteToken
   );
@@ -187,7 +187,7 @@ const getWeChatOAuthAPI = function() {
 
   return wechatOAuthAPI = new WeChatOAuth(
     config.miniAppId,
-    config.miniSecret,
+    OAuth.openSecret(config.miniSecret),
     // XXX: store the token somewhere, and probably also allow the project custom
     //      the token load/save handler in the project rather than in this package code.
     /* function (openid, callback) {

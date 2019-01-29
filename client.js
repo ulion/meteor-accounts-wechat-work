@@ -39,7 +39,7 @@ WxworkService.requestCredential = function (options, credentialRequestCompleteCa
     return
   }
 
-  WxworkService.signInMethod = WxworkService.withinWxworkBrowser && !!config.appId ? 'wxwork' : 'webapp';
+  WxworkService.signInMethod = WxworkService.withinWxworkBrowser && !!config.suiteId ? 'wxwork' : 'webapp';
 
   prepareLogin(launchLogin);
 
