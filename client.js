@@ -70,7 +70,7 @@ WxworkService.requestCredential = function (options, credentialRequestCompleteCa
     var loginUrl =
       signInMethodCfg.endpoint +
       '?appid=' + signInMethodCfg.appId +
-      '&redirect_uri=' + OAuth._redirectUri(serviceName, config, null, {replaceLocalhost: true}) +
+      '&redirect_uri=' + encodeURIComponent(OAuth._redirectUri(serviceName, config, null, {replaceLocalhost: true})) +
       (signInMethodCfg.scope ? '&scope=' + signInMethodCfg.scope : '') +
       '&state=' + state +
       (signInMethodCfg.endpointSuffix || '')
